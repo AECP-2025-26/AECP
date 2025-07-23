@@ -4,4 +4,3 @@ numpy
 matplotlib
 scikit-learn
 statsmodels
-tensorflow==2.11.0
