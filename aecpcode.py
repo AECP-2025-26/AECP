@@ -2,12 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import MinMaxScaler
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
 from sklearn.metrics import mean_squared_error
 import warnings
 
@@ -59,8 +55,8 @@ if uploaded_file is not None:
         st.sidebar.header("Forecasting Settings")
         algorithm_choice = st.sidebar.selectbox(
             "Select Forecasting Algorithm:",
-            ('ARIMA', 'SARIMA', 'LSTM')
-        ).upper()
+            ('ARIMA', 'SARIMA')
+        ).upper() # Removed 'LSTM'
 
         future_steps = st.sidebar.slider("Number of years to forecast into the future:", 10, 200, 100)
 
@@ -74,76 +70,8 @@ if uploaded_file is not None:
         st.subheader(f"Running {algorithm_choice} Model...")
 
         with st.spinner(f"Training and forecasting with {algorithm_choice}... This might take a moment."):
-            if algorithm_choice == 'LSTM':
-                # === Normalize population for LSTM ===
-                scaler = MinMaxScaler()
-                train_data_scaled = scaler.fit_transform(train_data[['pop']])
-                test_data_scaled = scaler.transform(test_data[['pop']])
-
-                window_size = 5
-
-                def create_sequences(data, window):
-                    X, y = [], []
-                    for i in range(len(data) - window):
-                        X.append(data[i:i+window])
-                        y.append(data[i+window])
-                    return np.array(X), np.array(y)
-
-                X_train, y_train = create_sequences(train_data_scaled, window_size)
-                X_test, y_test = create_sequences(test_data_scaled, window_size)
-
-                # Ensure X_train and X_test have correct dimensions for LSTM
-                if X_train.shape[0] == 0 or X_test.shape[0] == 0:
-                    st.warning(f"Not enough data to create sequences for LSTM with window size {window_size}. Please check your data length.")
-                    st.stop()
-
-                # === Build and Train LSTM Model ===
-                model = Sequential([
-                    LSTM(64, activation='relu', input_shape=(X_train.shape[1], X_train.shape[2])),
-                    Dense(1)
-                ])
-                model.compile(optimizer='adam', loss='mse')
-                model.fit(X_train, y_train, epochs=50, batch_size=8, verbose=0)
-
-                # === Evaluate LSTM Model ===
-                lstm_predictions_scaled = model.predict(X_test, verbose=0)
-                lstm_predictions = scaler.inverse_transform(lstm_predictions_scaled)
-                mse = mean_squared_error(test_data['pop'].iloc[window_size:], lstm_predictions)
-                rmse = np.sqrt(mse)
-                forecast_label = 'LSTM Forecast'
-                forecast_test = lstm_predictions
-
-                # === Forecast with LSTM (Full Data) for future plot ===
-                data_scaled_full = scaler.fit_transform(df[['pop']]) # Re-fit scaler on full data
-                X_full, y_full = create_sequences(data_scaled_full, window_size)
-
-                if X_full.shape[0] == 0:
-                    st.warning(f"Not enough data to create sequences for full LSTM forecast with window size {window_size}. Please check your data length.")
-                    st.stop()
-
-                model_full = Sequential([
-                    LSTM(64, activation='relu', input_shape=(X_full.shape[1], X_full.shape[2])),
-                    Dense(1)
-                ])
-                model_full.compile(optimizer='adam', loss='mse')
-                model_full.fit(X_full, y_full, epochs=50, batch_size=8, verbose=0)
-
-                last_seq_full = data_scaled_full[-window_size:]
-                lstm_preds_full = []
-                for _ in range(future_steps):
-                    input_seq_full = last_seq_full.reshape(1, window_size, 1)
-                    pred_full = model_full.predict(input_seq_full, verbose=0)
-                    lstm_preds_full.append(pred_full[0, 0])
-                    last_seq_full = np.append(last_seq_full[1:], pred_full.reshape(1, 1), axis=0)
-                forecast_full = scaler.inverse_transform(np.array(lstm_preds_full).reshape(-1, 1))
-
-                # === Extinction Year Detection (LSTM) ===
-                for i, val in enumerate(forecast_full):
-                    if val[0] <= 0:
-                        extinction_year = df.index.year.max() + i + 1
-                        break
-
-            elif algorithm_choice == 'ARIMA':
+            # Removed the entire 'if algorithm_choice == 'LSTM': ...' block
+            if algorithm_choice == 'ARIMA':
                 # === ARIMA Forecast ===
                 arima_model = ARIMA(train_data['pop'], order=(3,1,1)).fit()
                 arima_forecast_test = arima_model.forecast(steps=len(test_data))
@@ -185,7 +113,7 @@ if uploaded_file is not None:
                         extinction_year = df.index.year.max() + i + 1
                         break
             else:
-                st.error("Invalid algorithm choice. Please select ARIMA, SARIMA, or LSTM.")
+                st.error("Invalid algorithm choice. Please select ARIMA or SARIMA.") # Updated error message
                 st.stop()
 
         # === Plot Forecast ===
@@ -246,4 +174,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Please upload a CSV file to begin.")
-
